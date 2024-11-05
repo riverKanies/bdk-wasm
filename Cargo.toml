@@ -23,6 +23,8 @@ ring = { version = "0.17.8", features = ["wasm32_unknown_unknown_js"] }
 bdk_wallet = { version = "1.0.0-beta.5" }
 bdk_esplora = { version = "0.19.0", features = ["async-https"] }
 js-sys = "0.3.72"
+web-sys = { version = "0.3.72", features = ["console"] }
+wasm-bindgen-futures = "0.4.45"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.45"
