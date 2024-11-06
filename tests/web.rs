@@ -13,7 +13,7 @@ fn test_wallet() -> Result<WalletWrapper, String> {
     let network = "testnet".to_string();
     let descriptor = "wpkh([c258d2e4/84h/1h/0h]tpubDDYkZojQFQjht8Tm4jsS3iuEmKjTiEGjG6KnuFNKKJb5A6ZUCUZKdvLdSDWofKi4ToRCwb9poe1XdqfUnP4jaJjCB2Zwv11ZLgSbnZSNecE/0/*)".to_string();
     let change_descriptor = "wpkh([c258d2e4/84h/1h/0h]tpubDDYkZojQFQjht8Tm4jsS3iuEmKjTiEGjG6KnuFNKKJb5A6ZUCUZKdvLdSDWofKi4ToRCwb9poe1XdqfUnP4jaJjCB2Zwv11ZLgSbnZSNecE/1/*)".to_string();
-    let esplora = "https://blockstream.info/testnet/api".to_string();
+    let esplora = "http://localhost:8010/proxy".to_string();
 
     WalletWrapper::new(network, descriptor, change_descriptor, esplora)
 }

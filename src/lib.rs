@@ -6,13 +6,16 @@ use bdk_esplora::{
     esplora_client::{self, AsyncClient},
     EsploraAsyncExt,
 };
-use bdk_wallet::{bitcoin::Network, ChangeSet, KeychainKind, Wallet};
+use bdk_wallet::{
+    bitcoin::{self, Network},
+    keys, ChangeSet, KeychainKind, Wallet,
+};
 use js_sys::Promise;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 use web_sys::console;
 
-const PARALLEL_REQUESTS: usize = 5;
+const PARALLEL_REQUESTS: usize = 1;
 
 #[wasm_bindgen]
 extern "C" {}
@@ -72,40 +75,39 @@ impl WalletWrapper {
         })
     }
 
-    pub fn sync(&self, stop_gap: usize) -> Promise {
+    #[wasm_bindgen]
+    pub async fn sync(&self, stop_gap: usize) -> Result<(), String> {
         let wallet = Rc::clone(&self.wallet);
         let client = Rc::clone(&self.client);
 
-        future_to_promise(async move {
-            console::log_1(&"before sync".into());
+        console::log_1(&"before sync".into());
 
-            let request = wallet.borrow().start_full_scan().inspect({
-                let mut stdout = std::io::stdout();
-                let mut once = BTreeSet::<KeychainKind>::new();
-                move |keychain, spk_i, _| {
-                    if once.insert(keychain) {
-                        console::log_1(&format!("\nScanning keychain [{:?}]", keychain).into());
-                    }
-                    console::log_1(&format!(" {:<3}", spk_i).into());
-                    stdout.flush().expect("must flush")
+        let request = wallet.borrow().start_full_scan().inspect({
+            let mut stdout = std::io::stdout();
+            let mut once = BTreeSet::<KeychainKind>::new();
+            move |keychain, spk_i, _| {
+                if once.insert(keychain) {
+                    console::log_1(&format!("\nScanning keychain [{:?}]", keychain).into());
                 }
-            });
+                console::log_1(&format!(" {:<3}", spk_i).into());
+                stdout.flush().expect("must flush")
+            }
+        });
 
-            let update = client
-                .borrow()
-                .full_scan(request, stop_gap, PARALLEL_REQUESTS)
-                .await
-                .map_err(|e| format!("{:?}", e))?;
+        let update = client
+            .borrow()
+            .full_scan(request, stop_gap, PARALLEL_REQUESTS)
+            .await
+            .map_err(|e| format!("{:?}", e))?;
 
-            wallet
-                .borrow_mut()
-                .apply_update(update)
-                .map_err(|e| format!("{:?}", e))?;
+        wallet
+            .borrow_mut()
+            .apply_update(update)
+            .map_err(|e| format!("{:?}", e))?;
 
-            console::log_1(&"after sync".into());
+        console::log_1(&"after sync".into());
 
-            Ok("done".into())
-        })
+        Ok(())
     }
 
     #[wasm_bindgen]
