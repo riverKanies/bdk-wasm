@@ -8,6 +8,8 @@ wasm-pack build --target bundler
 run tests:
 ```
 wasm-pack test --headless --chrome
+# set timeout to 60 seconds
+WASM_BINDGEN_TEST_TIMEOUT=60 wasm-pack test --headless --safari
 ```
 
 

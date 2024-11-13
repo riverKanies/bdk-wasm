@@ -107,7 +107,7 @@ impl WalletWrapper {
                 .apply_update(update)
                 .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
-            Ok(JsValue::undefined())
+            Ok(JsValue::from_bool(true))
         })
     }
 
