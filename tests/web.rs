@@ -25,7 +25,8 @@ fn new_test_wallet() -> Result<WalletWrapper, String> {
 
     let mnemonic = Mnemonic::from_str(mnemonic_str).unwrap();
     let (descriptor, change_descriptor) =
-        mnemonic_to_descriptor(mnemonic, Network::Testnet, AddressType::P2wpkh).unwrap();
+        mnemonic_to_descriptor(mnemonic, Network::Testnet, AddressType::P2wpkh)
+            .expect("descriptor");
 
     console::log_1(&format!("descriptor: {}", descriptor).into());
     console::log_1(&format!("change_descriptor: {}", change_descriptor).into());
@@ -41,7 +42,7 @@ fn new_test_wallet() -> Result<WalletWrapper, String> {
 #[wasm_bindgen_test]
 async fn test_wallet() {
     let wallet = new_test_wallet().expect("wallet");
-    wallet.sync(2).await.expect("sync");
+    wallet.sync(5).await.expect("sync");
 
     let balance = wallet.balance();
     assert_eq!(balance, 0);
@@ -71,7 +72,7 @@ pub fn mnemonic_to_descriptor(
         _ => "44h",
     };
 
-    let coin_type = match network {
+    let coin_type: &str = match network {
         Network::Bitcoin => "0h",
         _ => "1h",
     };
