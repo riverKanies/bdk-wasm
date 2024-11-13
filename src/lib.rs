@@ -100,12 +100,14 @@ impl WalletWrapper {
             .await
             .map_err(|e| format!("{:?}", e))?;
 
+        console::log_1(&"after sync".into());
+
         wallet
             .borrow_mut()
             .apply_update(update)
             .map_err(|e| format!("{:?}", e))?;
 
-        console::log_1(&"after sync".into());
+        console::log_1(&"after apply".into());
 
         Ok(())
     }
