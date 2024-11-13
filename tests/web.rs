@@ -21,18 +21,17 @@ wasm_bindgen_test_configure!(run_in_browser);
 
 fn new_test_wallet() -> Result<WalletWrapper, String> {
     let mnemonic_str = "drip drum plug universe beyond gasp cram action hurt keep awake tortoise luggage return luxury net jar awake mimic hurry critic curtain quiz kit";
-    let esplora_url = "http://localhost:8010/proxy";
+    let esplora_url = "https://mutinynet.com/api";
 
     let mnemonic = Mnemonic::from_str(mnemonic_str).unwrap();
     let (descriptor, change_descriptor) =
-        mnemonic_to_descriptor(mnemonic, Network::Testnet, AddressType::P2wpkh)
-            .expect("descriptor");
+        mnemonic_to_descriptor(mnemonic, Network::Signet, AddressType::P2wpkh).expect("descriptor");
 
     console::log_1(&format!("descriptor: {}", descriptor).into());
     console::log_1(&format!("change_descriptor: {}", change_descriptor).into());
 
     WalletWrapper::new(
-        "testnet".into(),
+        "signet".into(),
         descriptor,
         change_descriptor,
         esplora_url.to_string(),
@@ -44,15 +43,14 @@ async fn test_wallet() {
     let wallet = new_test_wallet().expect("wallet");
     wallet.sync(5).await.expect("sync");
 
-    let balance = wallet.balance();
-    assert_eq!(balance, 0);
-
     let first_address = wallet.peek_address(0);
-
     assert_eq!(
         first_address,
         "tb1q8vl3qjdxnm54psxn5vgzdf402ky23r0jjfd8cj".to_string()
     );
+
+    let balance = wallet.balance();
+    assert_eq!(balance, 0);
 
     let new_address = wallet.get_new_address();
     console::log_1(&format!("new_address: {}", new_address).into());
@@ -69,6 +67,7 @@ pub fn mnemonic_to_descriptor(
     let purpose = match address_type {
         AddressType::P2wpkh => "84h",
         AddressType::P2tr => "86h",
+        AddressType::P2sh => "49h",
         _ => "44h",
     };
 
