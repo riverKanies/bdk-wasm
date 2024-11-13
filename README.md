@@ -1,3 +1,17 @@
+build:
+```
+cargo clean                       
+wasm-pack build --target bundler
+```
+
+
+run tests:
+```
+wasm-pack test --headless --chrome
+```
+
+
+
 <div align="center">
 
   <h1><code>wasm-pack-template</code></h1>

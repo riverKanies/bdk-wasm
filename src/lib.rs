@@ -76,40 +76,39 @@ impl WalletWrapper {
     }
 
     #[wasm_bindgen]
-    pub async fn sync(&self, stop_gap: usize) -> Result<(), String> {
+    pub fn sync(&self, stop_gap: usize) -> Promise {
         let wallet = Rc::clone(&self.wallet);
         let client = Rc::clone(&self.client);
+        future_to_promise(async move {
+            console::log_1(&"before sync".into());
 
-        console::log_1(&"before sync".into());
-
-        let request = wallet.borrow().start_full_scan().inspect({
-            let mut stdout = std::io::stdout();
-            let mut once = BTreeSet::<KeychainKind>::new();
-            move |keychain, spk_i, _| {
-                if once.insert(keychain) {
-                    console::log_1(&format!("\nScanning keychain [{:?}]", keychain).into());
+            let request = wallet.borrow().start_full_scan().inspect({
+                let mut stdout = std::io::stdout();
+                let mut once = BTreeSet::<KeychainKind>::new();
+                move |keychain, spk_i, _| {
+                    if once.insert(keychain) {
+                        console::log_1(&format!("\nScanning keychain [{:?}]", keychain).into());
+                    }
+                    console::log_1(&format!(" {:<3}", spk_i).into());
+                    stdout.flush().expect("must flush")
                 }
-                console::log_1(&format!(" {:<3}", spk_i).into());
-                stdout.flush().expect("must flush")
-            }
-        });
+            });
 
-        let update = client
-            .borrow()
-            .full_scan(request, stop_gap, PARALLEL_REQUESTS)
-            .await
-            .map_err(|e| format!("{:?}", e))?;
+            let update = client
+                .borrow()
+                .full_scan(request, stop_gap, PARALLEL_REQUESTS)
+                .await
+                .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
-        console::log_1(&"after sync".into());
+            console::log_1(&"after sync".into());
 
-        wallet
-            .borrow_mut()
-            .apply_update(update)
-            .map_err(|e| format!("{:?}", e))?;
+            wallet
+                .borrow_mut()
+                .apply_update(update)
+                .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
-        console::log_1(&"after apply".into());
-
-        Ok(())
+            Ok(JsValue::undefined())
+        })
     }
 
     #[wasm_bindgen]
