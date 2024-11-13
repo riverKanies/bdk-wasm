@@ -6,13 +6,9 @@ use bdk_esplora::{
     esplora_client::{self, AsyncClient},
     EsploraAsyncExt,
 };
-use bdk_wallet::{
-    bitcoin::{self, Network},
-    keys, ChangeSet, KeychainKind, Wallet,
-};
-use js_sys::Promise;
+use bdk_wallet::{bitcoin::Network, ChangeSet, KeychainKind, Wallet};
+use js_sys::Date;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::future_to_promise;
 use web_sys::console;
 
 const PARALLEL_REQUESTS: usize = 1;
@@ -66,6 +62,7 @@ impl WalletWrapper {
         };
 
         let client = esplora_client::Builder::new(&esplora_url)
+            .max_retries(6)
             .build_async()
             .map_err(|e| format!("{:?}", e))?;
 
@@ -79,8 +76,6 @@ impl WalletWrapper {
     pub async fn sync(&self, stop_gap: usize) -> Result<(), String> {
         let wallet = Rc::clone(&self.wallet);
         let client = Rc::clone(&self.client);
-
-        console::log_1(&"before sync".into());
 
         let request = wallet.borrow().start_full_scan().inspect({
             let mut stdout = std::io::stdout();
@@ -100,12 +95,13 @@ impl WalletWrapper {
             .await
             .map_err(|e| format!("{:?}", e))?;
 
+        let now = (Date::now() / 1000.0) as u64;
         wallet
             .borrow_mut()
-            .apply_update(update)
+            .apply_update_at(update, Some(now))
             .map_err(|e| format!("{:?}", e))?;
 
-        console::log_1(&"after sync".into());
+        console::log_1(&"after apply".into());
 
         Ok(())
     }
@@ -122,6 +118,16 @@ impl WalletWrapper {
             .wallet
             .borrow_mut()
             .next_unused_address(KeychainKind::External);
+
+        address.to_string()
+    }
+
+    #[wasm_bindgen]
+    pub fn peek_address(&self, index: u32) -> String {
+        let address = self
+            .wallet
+            .borrow_mut()
+            .peek_address(KeychainKind::External, index);
 
         address.to_string()
     }

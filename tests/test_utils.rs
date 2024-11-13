@@ -1,61 +1,12 @@
-//! Test suite for the Web and headless browsers.
-
-#![cfg(target_arch = "wasm32")]
-
-extern crate wasm_bindgen_test;
+use std::str::FromStr;
 
 use anyhow::{anyhow, Error};
-use std::str::FromStr;
-use web_sys::console;
-
 use bdk_wallet::{
     bip39::Mnemonic,
     bitcoin::{bip32::DerivationPath, key::Secp256k1, AddressType, Network},
     descriptor,
     descriptor::IntoWalletDescriptor,
 };
-use bdk_wasm::WalletWrapper;
-use wasm_bindgen_test::*;
-
-wasm_bindgen_test_configure!(run_in_browser);
-
-fn new_test_wallet() -> Result<WalletWrapper, String> {
-    let mnemonic_str = "drip drum plug universe beyond gasp cram action hurt keep awake tortoise luggage return luxury net jar awake mimic hurry critic curtain quiz kit";
-    let esplora_url = "http://localhost:8010/proxy";
-
-    let mnemonic = Mnemonic::from_str(mnemonic_str).unwrap();
-    let (descriptor, change_descriptor) =
-        mnemonic_to_descriptor(mnemonic, Network::Testnet, AddressType::P2wpkh).unwrap();
-
-    console::log_1(&format!("descriptor: {}", descriptor).into());
-    console::log_1(&format!("change_descriptor: {}", change_descriptor).into());
-
-    WalletWrapper::new(
-        "testnet".into(),
-        descriptor,
-        change_descriptor,
-        esplora_url.to_string(),
-    )
-}
-
-#[wasm_bindgen_test]
-async fn test_wallet() {
-    let wallet = new_test_wallet().expect("wallet");
-    wallet.sync(2).await.expect("sync");
-
-    let balance = wallet.balance();
-    assert_eq!(balance, 0);
-
-    let first_address = wallet.peek_address(0);
-
-    assert_eq!(
-        first_address,
-        "tb1q8vl3qjdxnm54psxn5vgzdf402ky23r0jjfd8cj".to_string()
-    );
-
-    let new_address = wallet.get_new_address();
-    console::log_1(&format!("new_address: {}", new_address).into());
-}
 
 pub fn mnemonic_to_descriptor(
     mnemonic: Mnemonic,
