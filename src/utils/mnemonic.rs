@@ -3,10 +3,12 @@ use std::str::FromStr;
 use anyhow::{anyhow, Error};
 use bdk_wallet::{
     bip39::Mnemonic,
-    bitcoin::{bip32::DerivationPath, key::Secp256k1, AddressType, Network},
+    bitcoin::{bip32::DerivationPath, key::Secp256k1, AddressType},
     descriptor,
     descriptor::IntoWalletDescriptor,
 };
+
+use crate::types::Network;
 
 pub fn mnemonic_to_descriptor(
     mnemonic: Mnemonic,
@@ -57,9 +59,9 @@ pub fn mnemonic_to_descriptor(
     };
 
     let (external_wallet_descriptor, _) =
-        external_descriptor.into_wallet_descriptor(&secp, network)?;
+        external_descriptor.into_wallet_descriptor(&secp, network.into())?;
     let (internal_wallet_descriptor, _) =
-        internal_descriptor.into_wallet_descriptor(&secp, network)?;
+        internal_descriptor.into_wallet_descriptor(&secp, network.into())?;
 
     external_wallet_descriptor.sanity_check()?;
     internal_wallet_descriptor.sanity_check()?;
