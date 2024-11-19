@@ -14,24 +14,25 @@ use bdk_wallet::{
     descriptor,
     descriptor::IntoWalletDescriptor,
 };
-use bdk_wasm::WalletWrapper;
+use bdk_wasm::{types::KeychainKind, WalletWrapper};
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
 fn new_test_wallet() -> Result<WalletWrapper, String> {
     let mnemonic_str = "drip drum plug universe beyond gasp cram action hurt keep awake tortoise luggage return luxury net jar awake mimic hurry critic curtain quiz kit";
-    let esplora_url = "https://mutinynet.com/api";
+    let esplora_url = "https://blockstream.info/testnet/api";
 
     let mnemonic = Mnemonic::from_str(mnemonic_str).unwrap();
     let (descriptor, change_descriptor) =
-        mnemonic_to_descriptor(mnemonic, Network::Signet, AddressType::P2wpkh).expect("descriptor");
+        mnemonic_to_descriptor(mnemonic, Network::Testnet, AddressType::P2wpkh)
+            .expect("descriptor");
 
     console::log_1(&format!("descriptor: {}", descriptor).into());
     console::log_1(&format!("change_descriptor: {}", change_descriptor).into());
 
     WalletWrapper::new(
-        "signet".into(),
+        "testnet".into(),
         descriptor,
         change_descriptor,
         esplora_url.to_string(),
@@ -40,20 +41,47 @@ fn new_test_wallet() -> Result<WalletWrapper, String> {
 
 #[wasm_bindgen_test]
 async fn test_wallet() {
-    let wallet = new_test_wallet().expect("wallet");
-    wallet.sync(5).await.expect("sync");
+    let stop_gap = 5;
+    let parallel_requests = 1;
 
-    let first_address = wallet.peek_address(0);
+    let wallet = new_test_wallet().expect("wallet");
+    wallet
+        .full_scan(stop_gap, parallel_requests)
+        .await
+        .expect("full_scan");
+
+    let address0 = wallet.peek_address(KeychainKind::External, 0);
     assert_eq!(
-        first_address,
+        address0.address(),
         "tb1q8vl3qjdxnm54psxn5vgzdf402ky23r0jjfd8cj".to_string()
     );
 
     let balance = wallet.balance();
     assert_eq!(balance, 0);
 
-    let new_address = wallet.get_new_address();
-    console::log_1(&format!("new_address: {}", new_address).into());
+    let address1 = wallet.next_unused_address(KeychainKind::External);
+    assert_eq!(address1.keychain(), KeychainKind::External);
+    assert_eq!(address1.index(), 0);
+
+    let address2: bdk_wasm::types::AddressInfo = wallet.reveal_next_address(KeychainKind::External);
+    assert_eq!(address2.index(), 1);
+
+    let address3 = wallet.next_unused_address(KeychainKind::External);
+    assert_eq!(address3.index(), 0);
+
+    // Should do a single call to the server (for each keychain)
+    wallet.sync(1).await.expect("sync");
+
+    // Should do a stop_gap calls to the server (for each keychain) and not start from beginning
+    wallet
+        .full_scan(stop_gap, parallel_requests)
+        .await
+        .expect("second full_scan");
+
+    let unused_addresses = wallet.list_unused_addresses(KeychainKind::External);
+    assert_eq!(unused_addresses.len(), 2);
+
+    console::log_1(&format!("unused_addresses: {:?}", unused_addresses).into());
 }
 
 pub fn mnemonic_to_descriptor(

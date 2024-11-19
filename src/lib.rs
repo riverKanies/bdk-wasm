@@ -1,25 +1,22 @@
+pub mod types;
 mod utils;
 
-use std::{cell::RefCell, collections::BTreeSet, io::Write, rc::Rc};
+use std::{cell::RefCell, rc::Rc, str::FromStr};
 
 use bdk_esplora::{
-    esplora_client::{self, AsyncClient},
+    esplora_client::{AsyncClient, Builder as EsploraBuilder},
     EsploraAsyncExt,
 };
-use bdk_wallet::{bitcoin::Network, ChangeSet, KeychainKind, Wallet};
+use bdk_wallet::{bitcoin::Network, ChangeSet, KeychainKind as BdkKeychainKind, Wallet};
+use bitcoin::BlockHash;
 use js_sys::Date;
+use serde_wasm_bindgen::to_value;
+use types::{AddressInfo, KeychainKind};
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
-const PARALLEL_REQUESTS: usize = 1;
-
 #[wasm_bindgen]
 extern "C" {}
-
-#[wasm_bindgen]
-pub fn greet() -> String {
-    "Hello, bdk-wasm!".into()
-}
 
 #[wasm_bindgen]
 pub struct WalletWrapper {
@@ -46,8 +43,8 @@ impl WalletWrapper {
         };
 
         let wallet_opt = Wallet::load()
-            .descriptor(KeychainKind::External, Some(external_descriptor.clone()))
-            .descriptor(KeychainKind::Internal, Some(internal_descriptor.clone()))
+            .descriptor(BdkKeychainKind::External, Some(external_descriptor.clone()))
+            .descriptor(BdkKeychainKind::Internal, Some(internal_descriptor.clone()))
             .extract_keys()
             .check_network(network)
             .load_wallet_no_persist(ChangeSet::default())
@@ -61,8 +58,7 @@ impl WalletWrapper {
                 .map_err(|e| format!("{:?}", e))?,
         };
 
-        let client = esplora_client::Builder::new(&esplora_url)
-            .max_retries(6)
+        let client = EsploraBuilder::new(&esplora_url)
             .build_async()
             .map_err(|e| format!("{:?}", e))?;
 
@@ -73,35 +69,51 @@ impl WalletWrapper {
     }
 
     #[wasm_bindgen]
-    pub async fn sync(&self, stop_gap: usize) -> Result<(), String> {
-        let wallet = Rc::clone(&self.wallet);
-        let client = Rc::clone(&self.client);
-
-        let request = wallet.borrow().start_full_scan().inspect({
-            let mut stdout = std::io::stdout();
-            let mut once = BTreeSet::<KeychainKind>::new();
-            move |keychain, spk_i, _| {
-                if once.insert(keychain) {
-                    console::log_1(&format!("\nScanning keychain [{:?}]", keychain).into());
-                }
-                console::log_1(&format!(" {:<3}", spk_i).into());
-                stdout.flush().expect("must flush")
-            }
-        });
-
-        let update = client
+    pub async fn full_scan(&self, stop_gap: usize, parallel_requests: usize) -> Result<(), String> {
+        let request = self.wallet.borrow().start_full_scan();
+        let update = self
+            .client
             .borrow()
-            .full_scan(request, stop_gap, PARALLEL_REQUESTS)
+            .full_scan(request, stop_gap, parallel_requests)
             .await
             .map_err(|e| format!("{:?}", e))?;
 
         let now = (Date::now() / 1000.0) as u64;
-        wallet
+        self.wallet
             .borrow_mut()
             .apply_update_at(update, Some(now))
             .map_err(|e| format!("{:?}", e))?;
 
-        console::log_1(&"after apply".into());
+        let change_set = self.wallet.borrow_mut().take_staged();
+        let change_set_js = to_value(&change_set).map_err(|e| format!("{:?}", e))?;
+
+        // Log the JsValue to the console
+        console::log_1(&change_set_js);
+
+        Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub async fn sync(&self, parallel_requests: usize) -> Result<(), String> {
+        let request = self.wallet.borrow().start_sync_with_revealed_spks();
+        let update = self
+            .client
+            .borrow()
+            .sync(request, parallel_requests)
+            .await
+            .map_err(|e| format!("{:?}", e))?;
+
+        let now = (Date::now() / 1000.0) as u64;
+        self.wallet
+            .borrow_mut()
+            .apply_update_at(update, Some(now))
+            .map_err(|e| format!("{:?}", e))?;
+
+        let change_set = self.wallet.borrow_mut().take_staged();
+        let change_set_js = to_value(&change_set).map_err(|e| format!("{:?}", e))?;
+
+        // Log the JsValue to the console
+        console::log_1(&change_set_js);
 
         Ok(())
     }
@@ -113,22 +125,52 @@ impl WalletWrapper {
     }
 
     #[wasm_bindgen]
-    pub fn get_new_address(&self) -> String {
-        let address = self
-            .wallet
+    pub fn next_unused_address(&self, keychain: KeychainKind) -> AddressInfo {
+        self.wallet
             .borrow_mut()
-            .next_unused_address(KeychainKind::External);
-
-        address.to_string()
+            .next_unused_address(keychain.into())
+            .into()
     }
 
     #[wasm_bindgen]
-    pub fn peek_address(&self, index: u32) -> String {
-        let address = self
-            .wallet
-            .borrow_mut()
-            .peek_address(KeychainKind::External, index);
+    pub fn peek_address(&self, keychain: KeychainKind, index: u32) -> AddressInfo {
+        self.wallet
+            .borrow()
+            .peek_address(keychain.into(), index)
+            .into()
+    }
 
-        address.to_string()
+    #[wasm_bindgen]
+    pub fn reveal_next_address(&self, keychain: KeychainKind) -> AddressInfo {
+        self.wallet
+            .borrow_mut()
+            .reveal_next_address(keychain.into())
+            .into()
+    }
+
+    #[wasm_bindgen]
+    pub fn list_unused_addresses(&self, keychain: KeychainKind) -> Vec<AddressInfo> {
+        self.wallet
+            .borrow()
+            .list_unused_addresses(keychain.into())
+            .map(Into::into)
+            .collect()
+    }
+
+    #[wasm_bindgen]
+    pub async fn get_block_by_hash(&self, block_hash: String) -> Result<JsValue, String> {
+        let block_hash =
+            BlockHash::from_str(block_hash.as_str()).map_err(|e| format!("{:?}", e))?;
+
+        let block = self
+            .client
+            .borrow()
+            .get_block_by_hash(&block_hash)
+            .await
+            .map_err(|e| format!("{:?}", e))?;
+
+        let block_js = to_value(&block).map_err(|e| format!("{:?}", e))?;
+
+        Ok(block_js)
     }
 }
