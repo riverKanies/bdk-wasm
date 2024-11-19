@@ -7,11 +7,9 @@ use wasm_bindgen::prelude::*;
 pub enum Network {
     /// Mainnet Bitcoin.
     Bitcoin,
-    /// Bitcoin's testnet network. (In future versions this will be combined
-    /// into a single variant containing the version)
+    /// Bitcoin's testnet network.
     Testnet,
-    /// Bitcoin's testnet4 network. (In future versions this will be combined
-    /// into a single variant containing the version)
+    /// Bitcoin's testnet4 network.
     Testnet4,
     /// Bitcoin's signet network.
     Signet,

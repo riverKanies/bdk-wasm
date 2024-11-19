@@ -19,7 +19,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 
 const STOP_GAP: usize = 5;
 const PARALLEL_REQUESTS: usize = 1;
-const NETWORK: Network = Network::Bitcoin;
+const NETWORK: Network = Network::Signet;
 
 fn new_descriptors() -> Result<(String, String), String> {
     let mnemonic_str = "drip drum plug universe beyond gasp cram action hurt keep awake tortoise luggage return luxury net jar awake mimic hurry critic curtain quiz kit";
@@ -39,7 +39,13 @@ async fn test_esplora_wallet() {
     set_panic_hook();
 
     let (descriptor, change_descriptor) = new_descriptors().expect("descriptors");
-    let esplora_url = "https://blockstream.info/api";
+    let esplora_url = match NETWORK {
+        Network::Bitcoin => "https://blockstream.info/api",
+        Network::Testnet => "https://blockstream.info/testnet/api",
+        Network::Testnet4 => "https://blockstream.info/testnet/api",
+        Network::Signet => "https://mutinynet.com/api",
+        Network::Regtest => "http://127.0.0.1:18443",
+    };
 
     let wallet = BitcoinEsploraWallet::new(
         NETWORK,
@@ -92,15 +98,15 @@ async fn test_rpc_wallet() {
     set_panic_hook();
 
     let (descriptor, change_descriptor) = new_descriptors().expect("descriptors");
-    let rpc_url = "http://umbrel.local:8332";
+    let rpc_url = "http://127.0.0.1:18443";
 
     let wallet = BitcoinRpcWallet::new(
         NETWORK,
         descriptor,
         change_descriptor,
         rpc_url.to_string(),
-        "umbrel".to_string(),
-        "ayoZmoj1cRjhmReQaBcWNkqqZDaXEgHLAbZ6Zq1715Q=".to_string(),
+        "polaruser".to_string(),
+        "polarpass".to_string(),
     )
     .expect("rpc_wallet");
 
