@@ -29,6 +29,8 @@ serde-wasm-bindgen = "0.6.5"
 bitcoin = { version = "0.32.4", features = ["serde"], default-features = false }
 miniscript = "12.2.0"
 bdk_bitcoind_rpc = "0.16.0"
+thiserror = "2.0.3"
+serde_json = "1.0.133"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.45"

@@ -27,7 +27,7 @@ impl BitcoinEsploraWallet {
         internal_descriptor: String,
         url: String,
     ) -> Result<BitcoinEsploraWallet, String> {
-        let wallet = Wallet::create(external_descriptor, internal_descriptor)
+        let wallet = Wallet::create(external_descriptor.clone(), internal_descriptor.clone())
             .network(network.into())
             .create_wallet_no_persist()
             .map_err(|e| format!("{:?}", e))?;
@@ -42,7 +42,6 @@ impl BitcoinEsploraWallet {
         })
     }
 
-    #[wasm_bindgen]
     pub async fn full_scan(&self, stop_gap: usize, parallel_requests: usize) -> Result<(), String> {
         let request = self.wallet.borrow().start_full_scan();
         let update = self
@@ -61,7 +60,6 @@ impl BitcoinEsploraWallet {
         Ok(())
     }
 
-    #[wasm_bindgen]
     pub async fn sync(&self, parallel_requests: usize) -> Result<(), String> {
         let request = self.wallet.borrow().start_sync_with_revealed_spks();
         let update = self
@@ -80,13 +78,11 @@ impl BitcoinEsploraWallet {
         Ok(())
     }
 
-    #[wasm_bindgen]
     pub fn balance(&self) -> u64 {
         let balance = self.wallet.borrow().balance();
         balance.total().to_sat()
     }
 
-    #[wasm_bindgen]
     pub fn next_unused_address(&self, keychain: KeychainKind) -> AddressInfo {
         self.wallet
             .borrow_mut()
@@ -94,7 +90,6 @@ impl BitcoinEsploraWallet {
             .into()
     }
 
-    #[wasm_bindgen]
     pub fn peek_address(&self, keychain: KeychainKind, index: u32) -> AddressInfo {
         self.wallet
             .borrow()
@@ -102,7 +97,6 @@ impl BitcoinEsploraWallet {
             .into()
     }
 
-    #[wasm_bindgen]
     pub fn reveal_next_address(&self, keychain: KeychainKind) -> AddressInfo {
         self.wallet
             .borrow_mut()
@@ -110,7 +104,6 @@ impl BitcoinEsploraWallet {
             .into()
     }
 
-    #[wasm_bindgen]
     pub fn list_unused_addresses(&self, keychain: KeychainKind) -> Vec<AddressInfo> {
         self.wallet
             .borrow()
@@ -119,7 +112,20 @@ impl BitcoinEsploraWallet {
             .collect()
     }
 
-    #[wasm_bindgen]
+    pub fn take_staged(&self) -> JsValue {
+        let changeset_opt = self.wallet.borrow_mut().take_staged();
+
+        match changeset_opt {
+            Some(changeset) => {
+                let changeset_js = to_value(&changeset)
+                    .map_err(|e| format!("{:?}", e))
+                    .expect("should not fail to serialize changeset");
+                changeset_js
+            }
+            None => JsValue::null(),
+        }
+    }
+
     pub async fn get_block_by_hash(&self, block_hash: String) -> Result<JsValue, String> {
         let block_hash =
             BlockHash::from_str(block_hash.as_str()).map_err(|e| format!("{:?}", e))?;

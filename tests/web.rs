@@ -18,8 +18,8 @@ use wasm_bindgen_test::*;
 wasm_bindgen_test_configure!(run_in_browser);
 
 const STOP_GAP: usize = 5;
-const PARALLEL_REQUESTS: usize = 1;
-const NETWORK: Network = Network::Signet;
+const PARALLEL_REQUESTS: usize = 5;
+const NETWORK: Network = Network::Testnet;
 
 fn new_descriptors() -> Result<(String, String), String> {
     let mnemonic_str = "drip drum plug universe beyond gasp cram action hurt keep awake tortoise luggage return luxury net jar awake mimic hurry critic curtain quiz kit";
@@ -44,7 +44,7 @@ async fn test_esplora_wallet() {
         Network::Testnet => "https://blockstream.info/testnet/api",
         Network::Testnet4 => "https://blockstream.info/testnet/api",
         Network::Signet => "https://mutinynet.com/api",
-        Network::Regtest => "http://127.0.0.1:18443",
+        Network::Regtest => "https://localhost:3000",
     };
 
     let wallet = BitcoinEsploraWallet::new(
