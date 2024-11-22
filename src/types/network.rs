@@ -1,4 +1,4 @@
-use bitcoin::Network as BdkNetwork;
+use bitcoin::{Network as BdkNetwork, NetworkKind};
 use wasm_bindgen::prelude::*;
 
 /// The cryptocurrency network to act on.
@@ -37,6 +37,15 @@ impl From<Network> for BdkNetwork {
             Network::Testnet4 => BdkNetwork::Testnet4,
             Network::Signet => BdkNetwork::Signet,
             Network::Regtest => BdkNetwork::Regtest,
+        }
+    }
+}
+
+impl From<Network> for NetworkKind {
+    fn from(network: Network) -> Self {
+        match network {
+            Network::Bitcoin => NetworkKind::Main,
+            _ => NetworkKind::Test,
         }
     }
 }

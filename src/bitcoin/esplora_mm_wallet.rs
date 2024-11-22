@@ -1,77 +1,102 @@
-use std::{cell::RefCell, rc::Rc, str::FromStr};
+use std::str::FromStr;
 
 use bdk_esplora::{
     esplora_client::{AsyncClient, Builder},
     EsploraAsyncExt,
 };
-use bdk_wallet::Wallet;
+use bdk_wallet::{PersistedWallet, Wallet};
 use bitcoin::BlockHash;
 use js_sys::Date;
 use serde_wasm_bindgen::to_value;
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen::prelude::*;
 
+use crate::bitcoin::storage::SnapWalletPersister;
 use crate::types::{AddressInfo, KeychainKind, Network};
 
+const STORAGE_KEY: &str = "btc_wallet";
+
 #[wasm_bindgen]
-pub struct EsploraWallet {
-    wallet: Rc<RefCell<Wallet>>,
-    client: Rc<RefCell<AsyncClient>>,
+pub struct EsploraMMWallet {
+    wallet: PersistedWallet<SnapWalletPersister>,
+    client: AsyncClient,
+    persister: SnapWalletPersister,
 }
 
 #[wasm_bindgen]
-impl EsploraWallet {
-    #[wasm_bindgen(constructor)]
-    pub fn new(
+impl EsploraMMWallet {
+    pub async fn new(
         network: Network,
         external_descriptor: String,
         internal_descriptor: String,
         url: String,
-    ) -> Result<EsploraWallet, String> {
-        let wallet = Wallet::create(external_descriptor.clone(), internal_descriptor.clone())
-            .network(network.into())
-            .create_wallet_no_persist()
+    ) -> Result<EsploraMMWallet, String> {
+        let mut persister = SnapWalletPersister::new(STORAGE_KEY.to_string());
+
+        let wallet_opt = Wallet::load()
+            .descriptor(
+                KeychainKind::External.into(),
+                Some(external_descriptor.clone()),
+            )
+            .descriptor(
+                KeychainKind::Internal.into(),
+                Some(internal_descriptor.clone()),
+            )
+            .extract_keys()
+            .check_network(network.into())
+            .load_wallet_async(&mut persister)
+            .await
             .map_err(|e| format!("{:?}", e))?;
+
+        let wallet = match wallet_opt {
+            Some(wallet) => wallet,
+            None => Wallet::create(external_descriptor, internal_descriptor)
+                .network(network.into())
+                .create_wallet_async(&mut persister)
+                .await
+                .map_err(|e| format!("{:?}", e))?,
+        };
 
         let client = Builder::new(&url)
             .build_async()
             .map_err(|e| format!("{:?}", e))?;
 
-        Ok(EsploraWallet {
-            wallet: Rc::new(RefCell::new(wallet)),
-            client: Rc::new(RefCell::new(client)),
+        Ok(EsploraMMWallet {
+            wallet,
+            client,
+            persister,
         })
     }
 
-    pub async fn full_scan(&self, stop_gap: usize, parallel_requests: usize) -> Result<(), String> {
-        let request = self.wallet.borrow().start_full_scan();
+    pub async fn full_scan(
+        &mut self,
+        stop_gap: usize,
+        parallel_requests: usize,
+    ) -> Result<(), String> {
+        let request = self.wallet.start_full_scan();
         let update = self
             .client
-            .borrow()
             .full_scan(request, stop_gap, parallel_requests)
             .await
             .map_err(|e| format!("{:?}", e))?;
 
         let now = (Date::now() / 1000.0) as u64;
         self.wallet
-            .borrow_mut()
             .apply_update_at(update, Some(now))
             .map_err(|e| format!("{:?}", e))?;
 
         Ok(())
     }
 
-    pub async fn sync(&self, parallel_requests: usize) -> Result<(), String> {
-        let request = self.wallet.borrow().start_sync_with_revealed_spks();
+    pub async fn sync(&mut self, parallel_requests: usize) -> Result<(), String> {
+        let request = self.wallet.start_sync_with_revealed_spks();
         let update = self
             .client
-            .borrow()
             .sync(request, parallel_requests)
             .await
             .map_err(|e| format!("{:?}", e))?;
 
         let now = (Date::now() / 1000.0) as u64;
         self.wallet
-            .borrow_mut()
             .apply_update_at(update, Some(now))
             .map_err(|e| format!("{:?}", e))?;
 
@@ -79,41 +104,31 @@ impl EsploraWallet {
     }
 
     pub fn balance(&self) -> u64 {
-        let balance = self.wallet.borrow().balance();
+        let balance = self.wallet.balance();
         balance.total().to_sat()
     }
 
-    pub fn next_unused_address(&self, keychain: KeychainKind) -> AddressInfo {
-        self.wallet
-            .borrow_mut()
-            .next_unused_address(keychain.into())
-            .into()
+    pub fn next_unused_address(&mut self, keychain: KeychainKind) -> AddressInfo {
+        self.wallet.next_unused_address(keychain.into()).into()
     }
 
     pub fn peek_address(&self, keychain: KeychainKind, index: u32) -> AddressInfo {
-        self.wallet
-            .borrow()
-            .peek_address(keychain.into(), index)
-            .into()
+        self.wallet.peek_address(keychain.into(), index).into()
     }
 
-    pub fn reveal_next_address(&self, keychain: KeychainKind) -> AddressInfo {
-        self.wallet
-            .borrow_mut()
-            .reveal_next_address(keychain.into())
-            .into()
+    pub fn reveal_next_address(&mut self, keychain: KeychainKind) -> AddressInfo {
+        self.wallet.reveal_next_address(keychain.into()).into()
     }
 
     pub fn list_unused_addresses(&self, keychain: KeychainKind) -> Vec<AddressInfo> {
         self.wallet
-            .borrow()
             .list_unused_addresses(keychain.into())
             .map(Into::into)
             .collect()
     }
 
-    pub fn take_staged(&self) -> JsValue {
-        let changeset_opt = self.wallet.borrow_mut().take_staged();
+    pub fn take_staged(&mut self) -> JsValue {
+        let changeset_opt = self.wallet.take_staged();
 
         match changeset_opt {
             Some(changeset) => {
@@ -126,13 +141,19 @@ impl EsploraWallet {
         }
     }
 
+    pub async fn persist(&mut self) -> Result<bool, JsValue> {
+        self.wallet
+            .persist_async(&mut self.persister)
+            .await
+            .map_err(|e| JsValue::from(format!("{:?}", e)))
+    }
+
     pub async fn get_block_by_hash(&self, block_hash: String) -> Result<JsValue, String> {
         let block_hash =
             BlockHash::from_str(block_hash.as_str()).map_err(|e| format!("{:?}", e))?;
 
         let block = self
             .client
-            .borrow()
             .get_block_by_hash(&block_hash)
             .await
             .map_err(|e| format!("{:?}", e))?;

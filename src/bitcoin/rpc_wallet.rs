@@ -8,13 +8,13 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use crate::types::Network;
 
 #[wasm_bindgen]
-pub struct BitcoinRpcWallet {
+pub struct RpcWallet {
     wallet: Rc<RefCell<Wallet>>,
     client: Rc<RefCell<Client>>,
 }
 
 #[wasm_bindgen]
-impl BitcoinRpcWallet {
+impl RpcWallet {
     #[wasm_bindgen(constructor)]
     pub fn new(
         network: Network,
@@ -23,7 +23,7 @@ impl BitcoinRpcWallet {
         url: String,
         rpc_user: String,
         rpc_pass: String,
-    ) -> Result<BitcoinRpcWallet, String> {
+    ) -> Result<RpcWallet, String> {
         let wallet: Wallet = Wallet::create(external_descriptor, internal_descriptor)
             .network(network.into())
             .create_wallet_no_persist()
@@ -32,7 +32,7 @@ impl BitcoinRpcWallet {
         let auth = Auth::UserPass(rpc_user.clone(), rpc_pass.clone());
         let client = Client::new(&url, auth).map_err(|e| format!("{:?}", e))?;
 
-        Ok(BitcoinRpcWallet {
+        Ok(RpcWallet {
             wallet: Rc::new(RefCell::new(wallet)),
             client: Rc::new(RefCell::new(client)),
         })
