@@ -141,13 +141,6 @@ impl EsploraMMWallet {
         }
     }
 
-    pub async fn persist(&mut self) -> Result<bool, JsValue> {
-        self.wallet
-            .persist_async(&mut self.persister)
-            .await
-            .map_err(|e| JsValue::from(format!("{:?}", e)))
-    }
-
     pub async fn get_block_by_hash(&self, block_hash: String) -> Result<JsValue, String> {
         let block_hash =
             BlockHash::from_str(block_hash.as_str()).map_err(|e| format!("{:?}", e))?;
@@ -161,5 +154,12 @@ impl EsploraMMWallet {
         let block_js = to_value(&block).map_err(|e| format!("{:?}", e))?;
 
         Ok(block_js)
+    }
+
+    pub async fn persist(&mut self) -> Result<bool, JsValue> {
+        self.wallet
+            .persist_async(&mut self.persister)
+            .await
+            .map_err(|e| JsValue::from(format!("{:?}", e)))
     }
 }
