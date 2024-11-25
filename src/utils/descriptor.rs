@@ -1,9 +1,13 @@
 use std::str::FromStr;
 
+use bdk_wallet::keys::ExtendedKey;
 use bitcoin::bip32::{Fingerprint, Xpriv, Xpub};
+use serde_wasm_bindgen::from_value;
 
-use crate::types::{AddressType, DescriptorPair, Network};
+use crate::types::{AddressType, DescriptorPair, Network, SLIP10Node};
 use wasm_bindgen::prelude::*;
+
+use super::result::JsResult;
 
 #[wasm_bindgen]
 pub fn mnemonic_to_descriptor(
@@ -11,14 +15,14 @@ pub fn mnemonic_to_descriptor(
     passphrase: &str,
     network: Network,
     address_type: AddressType,
-) -> Result<DescriptorPair, JsValue> {
+) -> JsResult<DescriptorPair> {
     let (external, internal) = crate::bitcoin::mnemonic_to_descriptor(
         mnemonic,
         passphrase,
         network.into(),
         address_type.into(),
     )
-    .map_err(|e| JsValue::from(format!("{:?}", e)))?;
+    .map_err(|e| JsError::new(&e.to_string()))?;
 
     Ok(DescriptorPair::new(
         external.0.to_string_with_secret(&external.1),
@@ -29,14 +33,16 @@ pub fn mnemonic_to_descriptor(
 #[wasm_bindgen]
 pub fn xpriv_to_descriptor(
     extended_privkey: &str,
+    fingerprint: &str,
     network: Network,
     address_type: AddressType,
-) -> Result<DescriptorPair, JsValue> {
-    let xprv = Xpriv::from_str(extended_privkey).map_err(|e| JsValue::from(format!("{:?}", e)))?;
+) -> JsResult<DescriptorPair> {
+    let xprv = Xpriv::from_str(extended_privkey)?;
+    let fingerprint = Fingerprint::from_hex(fingerprint)?;
 
     let (external, internal) =
-        crate::bitcoin::xpriv_to_descriptor(xprv, network.into(), address_type.into())
-            .map_err(|e| JsValue::from(format!("{:?}", e)))?;
+        crate::bitcoin::xpriv_to_descriptor(xprv, fingerprint, network.into(), address_type.into())
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
     Ok(DescriptorPair::new(
         external.0.to_string_with_secret(&external.1),
@@ -50,14 +56,13 @@ pub fn xpub_to_descriptor(
     fingerprint: &str,
     network: Network,
     address_type: AddressType,
-) -> Result<DescriptorPair, JsValue> {
-    let xpub = Xpub::from_str(extended_pubkey).map_err(|e| JsValue::from(format!("{:?}", e)))?;
-    let fingerprint =
-        Fingerprint::from_hex(fingerprint).map_err(|e| JsValue::from(format!("{:?}", e)))?;
+) -> JsResult<DescriptorPair> {
+    let xpub = Xpub::from_str(extended_pubkey)?;
+    let fingerprint = Fingerprint::from_hex(fingerprint)?;
 
     let (external, internal) =
         crate::bitcoin::xpub_to_descriptor(xpub, fingerprint, network.into(), address_type.into())
-            .map_err(|e| JsValue::from(format!("{:?}", e)))?;
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
     Ok(DescriptorPair::new(
         external.0.to_string(),
@@ -66,13 +71,21 @@ pub fn xpub_to_descriptor(
 }
 
 #[wasm_bindgen]
-pub fn mnemonic_to_xpriv(
-    mnemonic: &str,
-    passphrase: &str,
-    network: Network,
-) -> Result<String, JsValue> {
+pub fn mnemonic_to_xpriv(mnemonic: &str, passphrase: &str, network: Network) -> JsResult<String> {
     let xprv = crate::bitcoin::mnemonic_to_xpriv(mnemonic, passphrase, network.into())
-        .map_err(|e| JsValue::from(format!("{:?}", e)))?;
+        .map_err(|e| JsError::new(&e.to_string()))?;
 
     Ok(xprv.to_string())
+}
+
+#[wasm_bindgen]
+pub fn slip10_to_extended(slip10: JsValue, network: Network) -> JsResult<String> {
+    let node: SLIP10Node = from_value(slip10.clone())?;
+    let extended_key = crate::bitcoin::slip10_to_extended(node, network.into())
+        .map_err(|e| JsError::new(&e.to_string()))?;
+
+    match &extended_key {
+        ExtendedKey::Private(xprv) => Ok(xprv.0.to_string()),
+        ExtendedKey::Public(xpub) => Ok(xpub.0.to_string()),
+    }
 }

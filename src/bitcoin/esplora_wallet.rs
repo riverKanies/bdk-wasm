@@ -13,10 +13,11 @@ use bitcoin::{
 };
 use js_sys::Date;
 use serde_wasm_bindgen::to_value;
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 
 use crate::{
     bitcoin::{mnemonic_to_descriptor, xpriv_to_descriptor, xpub_to_descriptor},
+    result::JsResult,
     types::{AddressInfo, AddressType, KeychainKind, Network},
 };
 
@@ -61,9 +62,9 @@ impl EsploraWallet {
         external_descriptor: String,
         internal_descriptor: String,
         url: &str,
-    ) -> Result<EsploraWallet, JsValue> {
+    ) -> JsResult<EsploraWallet> {
         Self::load(network, external_descriptor, internal_descriptor, url)
-            .map_err(|e| JsValue::from(format!("{:?}", e)))
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 
     pub fn from_mnemonic(
@@ -72,30 +73,31 @@ impl EsploraWallet {
         network: Network,
         address_type: AddressType,
         url: &str,
-    ) -> Result<EsploraWallet, JsValue> {
+    ) -> JsResult<EsploraWallet> {
         let (external_descriptor, internal_descriptor) =
             mnemonic_to_descriptor(&mnemonic, &passphrase, network.into(), address_type.into())
-                .map_err(|e| JsValue::from(format!("{:?}", e)))?;
+                .map_err(|e| JsError::new(&e.to_string()))?;
 
         Self::load(network, external_descriptor, internal_descriptor, url)
-            .map_err(|e| JsValue::from(format!("{:?}", e)))
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 
     pub fn from_xpriv(
         extended_privkey: &str,
+        fingerprint: &str,
         network: Network,
         address_type: AddressType,
         url: &str,
-    ) -> Result<EsploraWallet, JsValue> {
-        let xprv =
-            Xpriv::from_str(extended_privkey).map_err(|e| JsValue::from(format!("{:?}", e)))?;
+    ) -> JsResult<EsploraWallet> {
+        let xprv = Xpriv::from_str(extended_privkey).map_err(|e| JsError::new(&e.to_string()))?;
+        let fingerprint = Fingerprint::from_hex(fingerprint)?;
 
         let (external_descriptor, internal_descriptor) =
-            xpriv_to_descriptor(xprv, network.into(), address_type.into())
-                .map_err(|e| JsValue::from(format!("{:?}", e)))?;
+            xpriv_to_descriptor(xprv, fingerprint, network.into(), address_type.into())
+                .map_err(|e| JsError::new(&e.to_string()))?;
 
         Self::load(network, external_descriptor, internal_descriptor, url)
-            .map_err(|e| JsValue::from(format!("{:?}", e)))
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 
     pub fn from_xpub(
@@ -104,52 +106,37 @@ impl EsploraWallet {
         network: Network,
         address_type: AddressType,
         url: &str,
-    ) -> Result<EsploraWallet, JsValue> {
-        let xpub =
-            Xpub::from_str(extended_pubkey).map_err(|e| JsValue::from(format!("{:?}", e)))?;
-        let fingerprint =
-            Fingerprint::from_hex(fingerprint).map_err(|e| JsValue::from(format!("{:?}", e)))?;
+    ) -> JsResult<EsploraWallet> {
+        let xpub = Xpub::from_str(extended_pubkey)?;
+        let fingerprint = Fingerprint::from_hex(fingerprint)?;
 
         let (external_descriptor, internal_descriptor) =
             xpub_to_descriptor(xpub, fingerprint, network.into(), address_type.into())
-                .map_err(|e| JsValue::from(format!("{:?}", e)))?;
+                .map_err(|e| JsError::new(&e.to_string()))?;
 
         Self::load(network, external_descriptor, internal_descriptor, url)
-            .map_err(|e| JsValue::from(format!("{:?}", e)))
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 
-    pub async fn full_scan(
-        &mut self,
-        stop_gap: usize,
-        parallel_requests: usize,
-    ) -> Result<(), String> {
+    pub async fn full_scan(&mut self, stop_gap: usize, parallel_requests: usize) -> JsResult<()> {
         let request = self.wallet.start_full_scan();
         let update = self
             .client
             .full_scan(request, stop_gap, parallel_requests)
-            .await
-            .map_err(|e| format!("{:?}", e))?;
+            .await?;
 
         let now = (Date::now() / 1000.0) as u64;
-        self.wallet
-            .apply_update_at(update, Some(now))
-            .map_err(|e| format!("{:?}", e))?;
+        self.wallet.apply_update_at(update, now)?;
 
         Ok(())
     }
 
-    pub async fn sync(&mut self, parallel_requests: usize) -> Result<(), String> {
+    pub async fn sync(&mut self, parallel_requests: usize) -> JsResult<()> {
         let request = self.wallet.start_sync_with_revealed_spks();
-        let update = self
-            .client
-            .sync(request, parallel_requests)
-            .await
-            .map_err(|e| format!("{:?}", e))?;
+        let update = self.client.sync(request, parallel_requests).await?;
 
         let now = (Date::now() / 1000.0) as u64;
-        self.wallet
-            .apply_update_at(update, Some(now))
-            .map_err(|e| format!("{:?}", e))?;
+        self.wallet.apply_update_at(update, now)?;
 
         Ok(())
     }
@@ -171,6 +158,13 @@ impl EsploraWallet {
         self.wallet.reveal_next_address(keychain.into()).into()
     }
 
+    pub fn reveal_addresses_to(&mut self, keychain: KeychainKind, index: u32) -> Vec<AddressInfo> {
+        self.wallet
+            .reveal_addresses_to(keychain.into(), index)
+            .map(Into::into)
+            .collect()
+    }
+
     pub fn list_unused_addresses(&self, keychain: KeychainKind) -> Vec<AddressInfo> {
         self.wallet
             .list_unused_addresses(keychain.into())
@@ -178,31 +172,29 @@ impl EsploraWallet {
             .collect()
     }
 
-    pub fn take_staged(&mut self) -> JsValue {
+    pub fn list_unspent(&self) -> JsResult<Vec<JsValue>> {
+        self.wallet
+            .list_unspent()
+            .map(|output| to_value(&output).map_err(Into::into))
+            .collect()
+    }
+
+    pub fn take_staged(&mut self) -> JsResult<JsValue> {
         let changeset_opt = self.wallet.take_staged();
 
         match changeset_opt {
             Some(changeset) => {
-                let changeset_js = to_value(&changeset)
-                    .map_err(|e| format!("{:?}", e))
-                    .expect("should not fail to serialize changeset");
-                changeset_js
+                let changeset_js = to_value(&changeset)?;
+                Ok(changeset_js)
             }
-            None => JsValue::null(),
+            None => Ok(JsValue::null()),
         }
     }
 
-    pub async fn get_block_by_hash(&self, block_hash: String) -> Result<JsValue, String> {
-        let block_hash =
-            BlockHash::from_str(block_hash.as_str()).map_err(|e| format!("{:?}", e))?;
-
-        let block = self
-            .client
-            .get_block_by_hash(&block_hash)
-            .await
-            .map_err(|e| format!("{:?}", e))?;
-
-        let block_js = to_value(&block).map_err(|e| format!("{:?}", e))?;
+    pub async fn get_block_by_hash(&self, block_hash: String) -> Result<JsValue, JsError> {
+        let block_hash = BlockHash::from_str(block_hash.as_str())?;
+        let block = self.client.get_block_by_hash(&block_hash).await?;
+        let block_js = to_value(&block)?;
 
         Ok(block_js)
     }

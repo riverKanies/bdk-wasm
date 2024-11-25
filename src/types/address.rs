@@ -2,13 +2,14 @@ use bdk_wallet::{
     bitcoin::AddressType as BdkAddressType, AddressInfo as BdkAddressInfo,
     KeychainKind as BdkKeychainKind,
 };
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use super::KeychainKind;
 
 /// A derived address and the index it was found at.
 #[wasm_bindgen]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct AddressInfo {
     /// Child index of this address
     index: u32,

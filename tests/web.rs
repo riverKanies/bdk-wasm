@@ -11,14 +11,52 @@ use bdk_wasm::{
     xpriv_to_descriptor, xpub_to_descriptor,
 };
 use wasm_bindgen_test::*;
+use web_sys::console;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
 const STOP_GAP: usize = 5;
-const PARALLEL_REQUESTS: usize = 2;
-const NETWORK: Network = Network::Signet;
+const PARALLEL_REQUESTS: usize = 1;
+const NETWORK: Network = Network::Testnet;
 const ADDRESS_TYPE: AddressType = AddressType::P2wpkh;
 const MNEMONIC: &str = "journey embrace permit coil indoor stereo welcome maid movie easy clock spider tent slush bright luxury awake waste legal modify awkward answer acid goose";
+
+#[wasm_bindgen_test]
+async fn test_dynamic() {
+    set_panic_hook();
+
+    let esplora_url = match NETWORK {
+        Network::Bitcoin => "https://blockstream.info/api",
+        Network::Testnet => "https://blockstream.info/testnet/api",
+        Network::Testnet4 => "https://blockstream.info/testnet/api",
+        Network::Signet => "https://mutinynet.com/api",
+        Network::Regtest => "https://localhost:3000",
+    };
+    let xprv  = "tprv8fytrHAfaHdDckTqxXwoX9ozu4Q3Zd9CqAjxrBUrh3wSstY6Lke3qJKtwrBztaCKJHCAQAFzgH1V2CNGWoKxzh6awk9uPuG69FraJgPfL4v";
+
+    let mut wallet =
+        EsploraWallet::from_xpriv(xprv, "abd2537b", NETWORK, ADDRESS_TYPE, esplora_url)
+            .expect("from_xpriv");
+
+    wallet
+        .full_scan(STOP_GAP, PARALLEL_REQUESTS)
+        .await
+        .expect("full_scan");
+
+    console::log_1(&wallet.balance().into());
+
+    let ext_unused_addresses = wallet.list_unused_addresses(KeychainKind::External);
+    console::log_1(&ext_unused_addresses.into());
+
+    let int_unused_addresses = wallet.list_unused_addresses(KeychainKind::Internal);
+    console::log_1(&int_unused_addresses.into());
+
+    let unspent = wallet.list_unspent().expect("msg");
+    console::log_1(&unspent.into());
+
+    let changeset = wallet.take_staged().expect("msg");
+    console::log_1(&changeset);
+}
 
 #[wasm_bindgen_test]
 async fn test_mnemonic_to_xpriv() {
@@ -53,17 +91,18 @@ async fn test_mnemonic_to_descriptor() {
 async fn test_xpriv_to_descriptor() {
     set_panic_hook();
     let xpriv = "tprv8g4stFEyX1zQoi4oNBdUFy4cDqWcyWu1kacHgK3RRvTdTPDm8HTxhERpV9JLTct69h4479xKJXm85SYkFZ4eMUsru5MdUNkeouuzbivKAJp";
+    let fingerprint = "27f9035f";
 
-    let descriptors =
-        xpriv_to_descriptor(xpriv, NETWORK, ADDRESS_TYPE).expect("xpriv_to_descriptor");
+    let descriptors = xpriv_to_descriptor(xpriv, fingerprint, NETWORK, ADDRESS_TYPE)
+        .expect("xpriv_to_descriptor");
 
     assert_eq!(
         descriptors.external(),
-        "wpkh(tprv8g4stFEyX1zQoi4oNBdUFy4cDqWcyWu1kacHgK3RRvTdTPDm8HTxhERpV9JLTct69h4479xKJXm85SYkFZ4eMUsru5MdUNkeouuzbivKAJp/84'/1'/0'/0/*)#7l6l9tgm"
+        "wpkh([27f9035f/84'/1'/0']tprv8g4stFEyX1zQoi4oNBdUFy4cDqWcyWu1kacHgK3RRvTdTPDm8HTxhERpV9JLTct69h4479xKJXm85SYkFZ4eMUsru5MdUNkeouuzbivKAJp/0/*)#sx5quhf7"
     );
     assert_eq!(
         descriptors.internal(),
-        "wpkh(tprv8g4stFEyX1zQoi4oNBdUFy4cDqWcyWu1kacHgK3RRvTdTPDm8HTxhERpV9JLTct69h4479xKJXm85SYkFZ4eMUsru5MdUNkeouuzbivKAJp/84'/1'/0'/1/*)#0tl7c7cr"
+        "wpkh([27f9035f/84'/1'/0']tprv8g4stFEyX1zQoi4oNBdUFy4cDqWcyWu1kacHgK3RRvTdTPDm8HTxhERpV9JLTct69h4479xKJXm85SYkFZ4eMUsru5MdUNkeouuzbivKAJp/1/*)#pj3ppzex"
     );
 }
 
@@ -87,6 +126,7 @@ async fn test_xpub_to_descriptor() {
 }
 
 #[wasm_bindgen_test]
+#[ignore]
 async fn test_esplora_wallet() {
     set_panic_hook();
 

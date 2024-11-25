@@ -81,7 +81,7 @@ impl EsploraMMWallet {
 
         let now = (Date::now() / 1000.0) as u64;
         self.wallet
-            .apply_update_at(update, Some(now))
+            .apply_update_at(update, now)
             .map_err(|e| format!("{:?}", e))?;
 
         Ok(())
@@ -97,7 +97,7 @@ impl EsploraMMWallet {
 
         let now = (Date::now() / 1000.0) as u64;
         self.wallet
-            .apply_update_at(update, Some(now))
+            .apply_update_at(update, now)
             .map_err(|e| format!("{:?}", e))?;
 
         Ok(())
