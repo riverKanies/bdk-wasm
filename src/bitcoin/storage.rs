@@ -5,7 +5,7 @@ use bdk_wallet::{AsyncWalletPersister, ChangeSet};
 use js_sys::Promise;
 use serde_json::Value;
 use serde_wasm_bindgen::{from_value, to_value};
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::{wasm_bindgen, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 pub(crate) struct SnapWalletPersister {

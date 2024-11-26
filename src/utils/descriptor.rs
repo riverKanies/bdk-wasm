@@ -5,7 +5,7 @@ use bitcoin::bip32::{Fingerprint, Xpriv, Xpub};
 use serde_wasm_bindgen::from_value;
 
 use crate::types::{AddressType, DescriptorPair, Network, SLIP10Node};
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::{wasm_bindgen, JsError, JsValue};
 
 use super::result::JsResult;
 

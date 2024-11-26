@@ -4,21 +4,19 @@ use bdk_esplora::{
     esplora_client::{AsyncClient, Builder},
     EsploraAsyncExt,
 };
-use bdk_wallet::{
-    descriptor::IntoWalletDescriptor, ChangeSet, KeychainKind as BdkKeychainKind, Wallet,
-};
+use bdk_wallet::{descriptor::IntoWalletDescriptor, Wallet};
 use bitcoin::{
     bip32::{Fingerprint, Xpriv, Xpub},
     BlockHash,
 };
 use js_sys::Date;
-use serde_wasm_bindgen::to_value;
+use serde_wasm_bindgen::{from_value, to_value};
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 
 use crate::{
     bitcoin::{mnemonic_to_descriptor, xpriv_to_descriptor, xpub_to_descriptor},
     result::JsResult,
-    types::{AddressInfo, AddressType, KeychainKind, Network},
+    types::{AddressInfo, AddressType, Balance, KeychainKind, Network},
 };
 
 #[wasm_bindgen]
@@ -29,7 +27,7 @@ pub struct EsploraWallet {
 
 #[wasm_bindgen]
 impl EsploraWallet {
-    fn load<D>(
+    fn create<D>(
         network: Network,
         external_descriptor: D,
         internal_descriptor: D,
@@ -38,19 +36,9 @@ impl EsploraWallet {
     where
         D: IntoWalletDescriptor + Send + Clone + 'static,
     {
-        let wallet_opt = Wallet::load()
-            .descriptor(BdkKeychainKind::External, Some(external_descriptor.clone()))
-            .descriptor(BdkKeychainKind::Internal, Some(internal_descriptor.clone()))
-            .extract_keys()
-            .check_network(network.into())
-            .load_wallet_no_persist(ChangeSet::default())?;
-
-        let wallet = match wallet_opt {
-            Some(wallet) => wallet,
-            None => Wallet::create(external_descriptor, internal_descriptor)
-                .network(network.into())
-                .create_wallet_no_persist()?,
-        };
+        let wallet = Wallet::create(external_descriptor, internal_descriptor)
+            .network(network.into())
+            .create_wallet_no_persist()?;
 
         let client = Builder::new(&url).build_async()?;
 
@@ -63,7 +51,7 @@ impl EsploraWallet {
         internal_descriptor: String,
         url: &str,
     ) -> JsResult<EsploraWallet> {
-        Self::load(network, external_descriptor, internal_descriptor, url)
+        Self::create(network, external_descriptor, internal_descriptor, url)
             .map_err(|e| JsError::new(&e.to_string()))
     }
 
@@ -78,7 +66,7 @@ impl EsploraWallet {
             mnemonic_to_descriptor(&mnemonic, &passphrase, network.into(), address_type.into())
                 .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Self::load(network, external_descriptor, internal_descriptor, url)
+        Self::create(network, external_descriptor, internal_descriptor, url)
             .map_err(|e| JsError::new(&e.to_string()))
     }
 
@@ -96,7 +84,7 @@ impl EsploraWallet {
             xpriv_to_descriptor(xprv, fingerprint, network.into(), address_type.into())
                 .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Self::load(network, external_descriptor, internal_descriptor, url)
+        Self::create(network, external_descriptor, internal_descriptor, url)
             .map_err(|e| JsError::new(&e.to_string()))
     }
 
@@ -114,8 +102,22 @@ impl EsploraWallet {
             xpub_to_descriptor(xpub, fingerprint, network.into(), address_type.into())
                 .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Self::load(network, external_descriptor, internal_descriptor, url)
+        Self::create(network, external_descriptor, internal_descriptor, url)
             .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    pub fn load(changeset: JsValue, url: &str) -> JsResult<EsploraWallet> {
+        let changeset = from_value(changeset)?;
+        let wallet_opt = Wallet::load().load_wallet_no_persist(changeset)?;
+
+        let wallet = match wallet_opt {
+            Some(wallet) => wallet,
+            None => return Err(JsError::new("Failed to load wallet, check the changeset")),
+        };
+
+        let client = Builder::new(&url).build_async()?;
+
+        Ok(EsploraWallet { wallet, client })
     }
 
     pub async fn full_scan(&mut self, stop_gap: usize, parallel_requests: usize) -> JsResult<()> {
@@ -141,9 +143,12 @@ impl EsploraWallet {
         Ok(())
     }
 
-    pub fn balance(&self) -> u64 {
-        let balance = self.wallet.balance();
-        balance.total().to_sat()
+    pub fn network(&self) -> Network {
+        self.wallet.network().into()
+    }
+
+    pub fn balance(&self) -> Balance {
+        self.wallet.balance().into()
     }
 
     pub fn next_unused_address(&mut self, keychain: KeychainKind) -> AddressInfo {
@@ -176,6 +181,13 @@ impl EsploraWallet {
         self.wallet
             .list_unspent()
             .map(|output| to_value(&output).map_err(Into::into))
+            .collect()
+    }
+
+    pub fn transactions(&self) -> JsResult<Vec<JsValue>> {
+        self.wallet
+            .transactions()
+            .map(|tx| to_value(&tx.tx_node.tx).map_err(Into::into))
             .collect()
     }
 

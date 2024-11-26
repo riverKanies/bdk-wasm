@@ -1,49 +1,55 @@
-use bdk_wallet::{
-    bitcoin::AddressType as BdkAddressType, AddressInfo as BdkAddressInfo,
-    KeychainKind as BdkKeychainKind,
-};
-use serde::Serialize;
-use wasm_bindgen::prelude::*;
+use std::ops::Deref;
+
+use bdk_wallet::{bitcoin::AddressType as BdkAddressType, AddressInfo as BdkAddressInfo};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 use super::KeychainKind;
 
 /// A derived address and the index it was found at.
 #[wasm_bindgen]
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct AddressInfo {
-    /// Child index of this address
-    index: u32,
-    /// Address
-    address: String,
-    /// Type of keychain
-    keychain: BdkKeychainKind,
+    address: BdkAddressInfo,
 }
 
 #[wasm_bindgen]
 impl AddressInfo {
+    /// Child index of this address
     #[wasm_bindgen(getter)]
     pub fn index(&self) -> u32 {
-        self.index
+        self.address.index
     }
 
+    /// Address
     #[wasm_bindgen(getter)]
     pub fn address(&self) -> String {
-        self.address.clone()
+        self.address.to_string()
     }
 
+    /// Type of keychain
     #[wasm_bindgen(getter)]
     pub fn keychain(&self) -> KeychainKind {
-        self.keychain.into()
+        self.address.keychain.into()
+    }
+
+    /// Type of keychain
+    #[wasm_bindgen(getter)]
+    pub fn address_type(&self) -> Option<AddressType> {
+        self.address.address_type().map(Into::into)
+    }
+}
+
+impl Deref for AddressInfo {
+    type Target = BdkAddressInfo;
+
+    fn deref(&self) -> &Self::Target {
+        &self.address
     }
 }
 
 impl From<BdkAddressInfo> for AddressInfo {
-    fn from(address_info: BdkAddressInfo) -> Self {
-        AddressInfo {
-            address: address_info.address.to_string(),
-            index: address_info.index,
-            keychain: address_info.keychain.into(),
-        }
+    fn from(address: BdkAddressInfo) -> Self {
+        AddressInfo { address }
     }
 }
 

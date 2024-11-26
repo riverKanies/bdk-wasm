@@ -1,5 +1,5 @@
 use bdk_wallet::KeychainKind as BdkKeychainKind;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

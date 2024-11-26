@@ -1,4 +1,4 @@
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 /// Pair of descriptors for external and internal keychains
 #[wasm_bindgen]

@@ -8,7 +8,7 @@ use bdk_wallet::{PersistedWallet, Wallet};
 use bitcoin::BlockHash;
 use js_sys::Date;
 use serde_wasm_bindgen::to_value;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::{wasm_bindgen, JsValue};
 
 use crate::bitcoin::storage::SnapWalletPersister;
 use crate::types::{AddressInfo, KeychainKind, Network};

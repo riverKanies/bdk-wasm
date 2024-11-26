@@ -1,5 +1,5 @@
 use bitcoin::{Network as BdkNetwork, NetworkKind};
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 /// The cryptocurrency network to act on.
 #[wasm_bindgen]
