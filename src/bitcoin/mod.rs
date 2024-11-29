@@ -1,18 +1,23 @@
 mod descriptor;
-mod esplora_wallet;
+mod wallet;
 
 pub use descriptor::*;
+pub use wallet::*;
+
+#[cfg(feature = "esplora")]
+mod esplora_wallet;
+
+#[cfg(feature = "metamask")]
+mod metamask_wallet;
+
+#[cfg(feature = "bitcoind")]
+mod rpc_wallet;
+
+#[cfg(feature = "esplora")]
 pub use esplora_wallet::EsploraWallet;
 
 #[cfg(feature = "metamask")]
-mod esplora_mm_wallet;
-#[cfg(feature = "bitcoind_rpc")]
-mod rpc_wallet;
-#[cfg(feature = "metamask")]
-mod storage;
+pub use metamask_wallet::MetaMaskWallet;
 
-#[cfg(feature = "metamask")]
-pub use esplora_mm_wallet::EsploraMMWallet;
-
-#[cfg(feature = "bitcoind_rpc")]
+#[cfg(feature = "bitcoind")]
 pub use rpc_wallet::RpcWallet;

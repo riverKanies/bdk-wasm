@@ -32,7 +32,11 @@ impl AddressInfo {
         self.address.keychain.into()
     }
 
-    /// Type of keychain
+    /// Gets the address type of the address.
+    ///
+    /// # Returns
+    ///
+    /// None if unknown, non-standard or related to the future witness version.
     #[wasm_bindgen(getter)]
     pub fn address_type(&self) -> Option<AddressType> {
         self.address.address_type().map(Into::into)

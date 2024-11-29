@@ -22,8 +22,6 @@ const MNEMONIC: &str = "journey embrace permit coil indoor stereo welcome maid m
 
 #[wasm_bindgen_test]
 async fn test_mnemonic_to_xpriv() {
-    set_panic_hook();
-
     let xprv = mnemonic_to_xpriv(MNEMONIC, "", NETWORK).expect("xpub_to_descriptor");
 
     assert_eq!(

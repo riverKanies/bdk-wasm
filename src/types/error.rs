@@ -1,15 +1,20 @@
 use thiserror::Error;
+use wasm_bindgen::JsValue;
 
 #[derive(Error, Debug)]
-pub enum WalletError {
-    #[error("Failed to initialize storage: {0}")]
-    Initialize(String),
-    #[error("Failed to persist: {0}")]
-    Persist(String),
+pub enum SnapPersisterError {
+    #[error("Failed to deserialize wallet state: {:?}", 0)]
+    Reflect(JsValue),
+    #[error("Failed to read snap state: {:?}", 0)]
+    ReadSnapState(JsValue),
+    #[error("Failed to write snap state: {:?}", 0)]
+    WriteSnapState(JsValue),
+    #[error("Failed to encode MRP: {0}")]
+    EncodeMRP(#[source] rmp_serde::encode::Error),
+    #[error("Failed to decode RMP: {0}")]
+    DecodeMRP(#[source] rmp_serde::decode::Error),
+    #[error("Failed to decode base64: {0}")]
+    DecodeBase64(#[source] bitcoin::base64::DecodeError),
     #[error("Failed to deserialize: {0}")]
-    Deserialize(String),
-    #[error("Failed to serialize: {0}")]
-    Serialize(String),
-    #[error("Promise returned error: {0}")]
-    Future(String),
+    Deserialize(#[source] serde_wasm_bindgen::Error),
 }

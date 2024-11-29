@@ -1,6 +1,6 @@
 //! Test suite for the Web and headless browsers.
 
-#![cfg(all(feature = "bitcoind_rpc", target_arch = "wasm32"))]
+#![cfg(all(feature = "bitcoind", target_arch = "wasm32"))]
 
 extern crate wasm_bindgen_test;
 

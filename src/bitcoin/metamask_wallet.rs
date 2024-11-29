@@ -4,76 +4,84 @@ use bdk_esplora::{
     esplora_client::{AsyncClient, Builder},
     EsploraAsyncExt,
 };
-use bdk_wallet::{chain::Merge, descriptor::IntoWalletDescriptor, ChangeSet, Wallet};
+use bdk_wallet::{descriptor::IntoWalletDescriptor, PersistedWallet, Wallet as BdkWallet};
 use bitcoin::bip32::{Fingerprint, Xpriv, Xpub};
 use js_sys::Date;
-use serde_wasm_bindgen::{from_value, to_value};
+use serde_wasm_bindgen::to_value;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 
 use crate::{
     bitcoin::{mnemonic_to_descriptor, xpriv_to_descriptor, xpub_to_descriptor},
     result::JsResult,
+    storage::SnapPersister,
     types::{AddressInfo, AddressType, Balance, KeychainKind, Network},
 };
 
+const STORAGE_KEY: &str = "wallet";
+
 #[wasm_bindgen]
-pub struct EsploraWallet {
-    wallet: Wallet,
+pub struct MetaMaskWallet {
+    wallet: PersistedWallet<SnapPersister>,
     client: AsyncClient,
+    persister: SnapPersister,
 }
 
 #[wasm_bindgen]
-impl EsploraWallet {
-    fn create<D>(
+impl MetaMaskWallet {
+    async fn create<D>(
         network: Network,
         external_descriptor: D,
         internal_descriptor: D,
         url: &str,
-    ) -> Result<EsploraWallet, anyhow::Error>
+    ) -> JsResult<MetaMaskWallet>
     where
         D: IntoWalletDescriptor + Send + Clone + 'static,
     {
-        let wallet = Wallet::create(external_descriptor, internal_descriptor)
+        let mut persister = SnapPersister::new(STORAGE_KEY);
+        let wallet = BdkWallet::create(external_descriptor, internal_descriptor)
             .network(network.into())
-            .create_wallet_no_persist()?;
+            .create_wallet_async(&mut persister)
+            .await?;
 
         let client = Builder::new(&url).build_async()?;
 
-        Ok(EsploraWallet { wallet, client })
+        Ok(MetaMaskWallet {
+            wallet,
+            client,
+            persister,
+        })
     }
 
-    pub fn from_descriptors(
+    pub async fn from_descriptors(
         network: Network,
         external_descriptor: String,
         internal_descriptor: String,
         url: &str,
-    ) -> JsResult<EsploraWallet> {
-        Self::create(network, external_descriptor, internal_descriptor, url)
-            .map_err(|e| JsError::new(&e.to_string()))
+    ) -> JsResult<MetaMaskWallet> {
+        Self::create(network, external_descriptor, internal_descriptor, url).await
     }
 
-    pub fn from_mnemonic(
+    pub async fn from_mnemonic(
         mnemonic: &str,
         passphrase: &str,
         network: Network,
         address_type: AddressType,
         url: &str,
-    ) -> JsResult<EsploraWallet> {
+    ) -> JsResult<MetaMaskWallet> {
         let (external_descriptor, internal_descriptor) =
             mnemonic_to_descriptor(&mnemonic, &passphrase, network.into(), address_type.into())
                 .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Self::create(network, external_descriptor, internal_descriptor, url)
-            .map_err(|e| JsError::new(&e.to_string()))
+        Self::create(network, external_descriptor, internal_descriptor, url).await
     }
 
-    pub fn from_xpriv(
+    pub async fn from_xpriv(
         extended_privkey: &str,
         fingerprint: &str,
         network: Network,
         address_type: AddressType,
         url: &str,
-    ) -> JsResult<EsploraWallet> {
+    ) -> JsResult<MetaMaskWallet> {
         let xprv = Xpriv::from_str(extended_privkey).map_err(|e| JsError::new(&e.to_string()))?;
         let fingerprint = Fingerprint::from_hex(fingerprint)?;
 
@@ -81,17 +89,16 @@ impl EsploraWallet {
             xpriv_to_descriptor(xprv, fingerprint, network.into(), address_type.into())
                 .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Self::create(network, external_descriptor, internal_descriptor, url)
-            .map_err(|e| JsError::new(&e.to_string()))
+        Self::create(network, external_descriptor, internal_descriptor, url).await
     }
 
-    pub fn from_xpub(
+    pub async fn from_xpub(
         extended_pubkey: &str,
         fingerprint: &str,
         network: Network,
         address_type: AddressType,
         url: &str,
-    ) -> JsResult<EsploraWallet> {
+    ) -> JsResult<MetaMaskWallet> {
         let xpub = Xpub::from_str(extended_pubkey)?;
         let fingerprint = Fingerprint::from_hex(fingerprint)?;
 
@@ -99,13 +106,12 @@ impl EsploraWallet {
             xpub_to_descriptor(xpub, fingerprint, network.into(), address_type.into())
                 .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Self::create(network, external_descriptor, internal_descriptor, url)
-            .map_err(|e| JsError::new(&e.to_string()))
+        Self::create(network, external_descriptor, internal_descriptor, url).await
     }
 
-    pub fn load(changeset: JsValue, url: &str) -> JsResult<EsploraWallet> {
-        let changeset = from_value(changeset)?;
-        let wallet_opt = Wallet::load().load_wallet_no_persist(changeset)?;
+    pub async fn load(url: &str) -> JsResult<MetaMaskWallet> {
+        let mut persister = SnapPersister::new(STORAGE_KEY);
+        let wallet_opt = BdkWallet::load().load_wallet_async(&mut persister).await?;
 
         let wallet = match wallet_opt {
             Some(wallet) => wallet,
@@ -114,7 +120,11 @@ impl EsploraWallet {
 
         let client = Builder::new(&url).build_async()?;
 
-        Ok(EsploraWallet { wallet, client })
+        Ok(MetaMaskWallet {
+            wallet,
+            client,
+            persister,
+        })
     }
 
     pub async fn full_scan(&mut self, stop_gap: usize, parallel_requests: usize) -> JsResult<()> {
@@ -188,21 +198,10 @@ impl EsploraWallet {
             .collect()
     }
 
-    pub fn take_staged(&mut self) -> JsResult<JsValue> {
-        match self.wallet.take_staged() {
-            Some(changeset) => Ok(to_value(&changeset)?),
-            None => Ok(JsValue::null()),
-        }
-    }
-
-    pub fn take_merged(&mut self, previous: JsValue) -> JsResult<JsValue> {
-        match self.wallet.take_staged() {
-            Some(curr_changeset) => {
-                let mut changeset: ChangeSet = from_value(previous)?;
-                changeset.merge(curr_changeset);
-                Ok(to_value(&changeset)?)
-            }
-            None => Ok(JsValue::null()),
-        }
+    pub async fn persist(&mut self) -> JsResult<bool> {
+        self.wallet
+            .persist_async(&mut self.persister)
+            .await
+            .map_err(Into::into)
     }
 }
