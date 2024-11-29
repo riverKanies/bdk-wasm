@@ -26,31 +26,17 @@ impl SnapPersister {
 
     async fn read_changeset(&self) -> Result<ChangeSet, SnapPersisterError> {
         let state = self.read_snap_state().await?;
-        web_sys::console::log_2(&"state as HashMap".into(), &to_value(&state).unwrap());
-
         self.extract_changeset(&state)
     }
 
     async fn write_changeset(&self, new_changeset: &ChangeSet) -> Result<(), SnapPersisterError> {
-        web_sys::console::log_2(&"new_changeset".into(), &to_value(new_changeset).unwrap());
-
         let mut state = self.read_snap_state().await?;
         let mut changeset = self.extract_changeset(&state)?;
         changeset.merge(new_changeset.clone());
 
-        web_sys::console::log_2(
-            &"merged changeset to save".into(),
-            &to_value(new_changeset).unwrap(),
-        );
-
         let state_bytes = rmp_serde::to_vec(&changeset).map_err(SnapPersisterError::EncodeMRP)?;
         let state_b64 = BASE64_STANDARD.encode(&state_bytes);
-
-        web_sys::console::log_2(&"state_b64 to save".into(), &to_value(&state_b64).unwrap());
-
         state.insert(self.key.clone(), state_b64);
-
-        web_sys::console::log_2(&"state to save".into(), &to_value(&state).unwrap());
 
         let args = RequestArguments {
             method: "snap_manageState".to_string(),
@@ -59,11 +45,6 @@ impl SnapPersister {
                 new_state: Some(state),
             },
         };
-
-        web_sys::console::log_2(
-            &"args to save".into(),
-            &args.serialize(&self.serializer).unwrap(),
-        );
 
         let promise = snap_request(&args.serialize(&self.serializer).unwrap());
         JsFuture::from(promise)
@@ -82,17 +63,12 @@ impl SnapPersister {
             },
         };
 
-        web_sys::console::log_2(&"args in read_snap_state".into(), &to_value(&args).unwrap());
-
         let promise = snap_request(&to_value(&args).unwrap());
         let state = JsFuture::from(promise)
             .await
             .map_err(SnapPersisterError::ReadSnapState)?;
 
-        web_sys::console::log_2(&"state read".into(), &state);
-
         if state.is_undefined() || state.is_null() {
-            web_sys::console::log_1(&"no state".into());
             Ok(SnapState::new())
         } else {
             from_value(state).map_err(SnapPersisterError::Deserialize)
@@ -101,17 +77,11 @@ impl SnapPersister {
 
     fn extract_changeset(&self, state: &SnapState) -> Result<ChangeSet, SnapPersisterError> {
         if let Some(state_b64) = state.get(&self.key) {
-            web_sys::console::log_2(&"state_b64".into(), &to_value(&state_b64).unwrap());
-
             let state_bytes = BASE64_STANDARD
                 .decode(state_b64)
                 .map_err(SnapPersisterError::DecodeBase64)?;
-
-            web_sys::console::log_2(&"state_bytes".into(), &to_value(&state_bytes).unwrap());
-
             rmp_serde::from_slice(&state_bytes).map_err(SnapPersisterError::DecodeMRP)
         } else {
-            web_sys::console::log_1(&"empty wallet state".into());
             Ok(ChangeSet::default())
         }
     }
