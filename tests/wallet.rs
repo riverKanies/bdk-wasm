@@ -94,7 +94,10 @@ async fn test_wallet() {
     let mut wallet = Wallet::from_seed(&seed, NETWORK, ADDRESS_TYPE).expect("wallet");
 
     let balance = wallet.balance();
-    assert_eq!(balance.total(), 0);
+    assert_eq!(balance.total().to_sat(), 0);
+
+    let block_height = wallet.latest_checkpoint().height();
+    assert_eq!(block_height, 0);
 
     let initial_changeset_js = wallet.take_staged().expect("take_staged");
     let initial_changeset: ChangeSet = from_value(initial_changeset_js.clone()).expect("from_value");
