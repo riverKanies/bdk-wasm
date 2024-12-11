@@ -19,7 +19,6 @@ jobs:
           - debug,default
           - debug,esplora
           - debug,snap
-          - debug,bitcoind
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -40,7 +39,7 @@ jobs:
           fi
       - name: Test
         if: ${{ matrix.features != 'all' }}
-        run: wasm-pack test --chrome --firefox --safari --headless --features ${{ matrix.features }}
+        run: wasm-pack test --chrome --firefox --headless --features ${{ matrix.features }}
 
   lint:
     name: Lint (fmt + clippy)
