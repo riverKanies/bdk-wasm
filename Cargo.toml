@@ -1,16 +1,18 @@
 [package]
-name = "bdk_wasm"
-version = "0.1.0"
+name = "bitcoindevkit"
+version = "0.1.1"
 repository = "https://github.com/MetaMask/bdk-wasm"
-description = "A modern, lightweight, descriptor-based wallet library for WASM and JS/TS"
+description = "A modern, lightweight, descriptor-based wallet library in WebAssembly for browsers and Node"
 keywords = [
     "bitcoin",
     "wallet",
     "descriptor",
     "psbt",
     "wasm",
-    "js",
-    "typescript",
+    "bitcoindevkit",
+    "bdk",
+    "browser",
+    "node",
 ]
 readme = "README.md"
 license = "MIT OR Apache-2.0"
@@ -23,12 +25,12 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-esplora = ["bdk_esplora"]
+esplora = ["bdk_esplora", "wasm-bindgen-futures"]
 debug = ["console_error_panic_hook"]
 
 [dependencies]
 wasm-bindgen = "0.2.99"
-wasm-bindgen-futures = "0.4.49"
+wasm-bindgen-futures = { version = "0.4.49", optional = true }
 anyhow = "1.0.94"
 serde = { version = "1.0.216", default-features = false, features = ["derive"] }
 js-sys = "0.3.76"
