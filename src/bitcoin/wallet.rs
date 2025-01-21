@@ -1,4 +1,4 @@
-use bdk_wallet::Wallet as BdkWallet;
+use bdk_wallet::{SignOptions, Wallet as BdkWallet};
 use js_sys::Date;
 use serde_wasm_bindgen::to_value;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
@@ -6,7 +6,7 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 use crate::{
     result::JsResult,
     types::{
-        AddressInfo, Balance, ChangeSet, CheckPoint, DescriptorPair, FullScanRequest, KeychainKind, Network,
+        AddressInfo, Balance, ChangeSet, CheckPoint, FeeRate, FullScanRequest, KeychainKind, Network, Psbt, Recipient,
         SyncRequest, Update,
     },
 };
@@ -16,16 +16,30 @@ pub struct Wallet(BdkWallet);
 
 #[wasm_bindgen]
 impl Wallet {
-    pub fn create(network: Network, descriptors: DescriptorPair) -> JsResult<Wallet> {
-        let wallet = BdkWallet::create(descriptors.external(), descriptors.internal())
+    pub fn create(network: Network, external_descriptor: String, internal_descriptor: String) -> JsResult<Wallet> {
+        let wallet = BdkWallet::create(external_descriptor, internal_descriptor)
             .network(network.into())
             .create_wallet_no_persist()?;
 
         Ok(Wallet(wallet))
     }
 
-    pub fn load(changeset: ChangeSet) -> JsResult<Wallet> {
-        let wallet_opt = BdkWallet::load().load_wallet_no_persist(changeset.into())?;
+    pub fn load(
+        changeset: ChangeSet,
+        external_descriptor: Option<String>,
+        internal_descriptor: Option<String>,
+    ) -> JsResult<Wallet> {
+        let mut builder = BdkWallet::load();
+
+        if external_descriptor.is_some() {
+            builder = builder.descriptor(KeychainKind::External.into(), external_descriptor);
+        }
+
+        if internal_descriptor.is_some() {
+            builder = builder.descriptor(KeychainKind::Internal.into(), internal_descriptor);
+        }
+
+        let wallet_opt = builder.extract_keys().load_wallet_no_persist(changeset.into())?;
 
         let wallet = match wallet_opt {
             Some(wallet) => wallet,
@@ -107,5 +121,21 @@ impl Wallet {
 
     pub fn public_descriptor(&self, keychain: KeychainKind) -> String {
         self.0.public_descriptor(keychain.into()).to_string()
+    }
+
+    pub fn build_tx(&mut self, fee_rate: FeeRate, recipients: Vec<Recipient>) -> JsResult<Psbt> {
+        let mut builder = self.0.build_tx();
+
+        builder
+            .set_recipients(recipients.into_iter().map(Into::into).collect())
+            .fee_rate(fee_rate.into());
+
+        let psbt = builder.finish()?;
+        Ok(psbt.into())
+    }
+
+    pub fn sign(&self, psbt: &mut Psbt) -> JsResult<bool> {
+        let result = self.0.sign(psbt, SignOptions::default())?;
+        Ok(result)
     }
 }
