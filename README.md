@@ -42,7 +42,7 @@ For a lightweight library providing stateless utility functions, see [`bitcoinjs
 ## Browser Usage
 
 ```sh
-yarn add bdk
+yarn add bitcoindevkit
 ```
 
 ## Notes on WASM Specific Considerations
@@ -91,6 +91,18 @@ AR = "/opt/homebrew/opt/llvm/bin/llvm-ar"
 CC = "/opt/homebrew/opt/llvm/bin/clang"
 ```
 
+Additionally, if you're using rust-analyzer in VSCode, you'll want to add the following to your `.vscode/settings.json` file:
+
+```json
+{
+    "rust-analyzer.server.extraEnv": {
+        "AR": "/opt/homebrew/opt/llvm/bin/llvm-ar",
+        "CC": "/opt/homebrew/opt/llvm/bin/clang"
+    },
+    "rust-analyzer.cargo.target": "wasm32-unknown-unknown"
+}
+```
+
 ### Build with `wasm-pack build`
 
 ```sh
@@ -105,7 +117,7 @@ wasm-pack build
 wasm-pack test --headless --firefox
 ```
 
-> Works with `--firefox`, `--chrome` or `safari`.
+> Works with `--firefox`, `--chrome` or `--safari`.
 
 ## License
 
