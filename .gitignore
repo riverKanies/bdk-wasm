@@ -1,9 +1,7 @@
 /target
 **/*.rs.bk
-/.vscode
 .idea
 *.swp
-.cargo
 .npmrc
 
 bin/

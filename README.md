@@ -42,7 +42,7 @@ For a lightweight library providing stateless utility functions, see [`bitcoinjs
 ## Browser Usage
 
 ```sh
-yarn add bdk
+yarn add bitcoindevkit
 ```
 
 ## Notes on WASM Specific Considerations
