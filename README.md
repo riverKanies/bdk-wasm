@@ -4,7 +4,7 @@
   <img src="./static/bdk.png" width="220" />
 
   <p>
-    <strong>The Bitcoin Dev Kit for Browsers and Node</strong>
+    <strong>The Bitcoin Dev Kit for Browsers, Node, and React Native</strong>
   </p>
 
   <p>
@@ -44,6 +44,29 @@ For a lightweight library providing stateless utility functions, see [`bitcoinjs
 ```sh
 yarn add bitcoindevkit
 ```
+
+## Notes on WASM Specific Considerations
+
+> ⚠️ **Important:** There are several limitations to using BDK in WASM. Basically any functionality that requires OS access is not directly available in WASM and must therefore be handled in JavaScript. However, there are viable workarounds documented below. Some key limitations include:
+>
+> - No access to the file system
+> - No access to the system time
+> - Network access is limited to http(s)
+
+## WASM Considerations Overview
+
+### No access to the file system
+With no direct access to the file system, persistence cannot be handled by BDK directly. Instead, an in memory wallet must be used in the WASM environment, and the data must be exported using `wallet.take_staged()`. This will export the changeset for the updates to the wallet state, which must then be merged with current wallet state in JS (will depend on your persistence strategy). When you restart your app, you can feed your persisted wallet data to `wallet.load()` to recover the wallet state.
+
+### No access to the system time
+Any function that requires system time, such as any sort of timestamp, must access system time through a wasm binding to the JavaScript environment. However, in the case of `wallet.apply_update()`, this is being handled behind the scenes. If it weren't you'd have to use `wallet.apply_update_at()` instead. But it's worth keeping this limitation in mind in case you do hit an error related to system time access limitations.
+
+### Network access is limited to http(s)
+This effectively means that the blockchain client must be an Esplora instance. Both RPC and Electrum clients require sockets and will not work for BDK in a WASM environment out of the box.
+
+### Troubleshooting
+WASM errors can be quite cryptic, so it's important to understand the limitations of the WASM environment. One common error you might see while running a BDK function through a WASM binding in the browser is `unreachable`. This indicates you're trying to access OS level functionality through rust that isn't available in WASM.
+
 
 ## Development Environment
 
