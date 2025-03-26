@@ -2,8 +2,11 @@ use bdk_wallet::serde_json::to_string;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
-use bdk_wallet::psbt::PsbtUtils;
-use bitcoin::{Amount as BdkAmount, Psbt as BdkPsbt, ScriptBuf as BdkScriptBuf};
+use bdk_wallet::{
+    bitcoin::{Amount as BdkAmount, Psbt as BdkPsbt, ScriptBuf as BdkScriptBuf},
+    psbt::PsbtUtils,
+};
+
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::result::JsResult;
@@ -12,7 +15,6 @@ use super::{Address, Amount, FeeRate, Transaction};
 
 /// A Partially Signed Transaction.
 #[wasm_bindgen]
-#[derive(Debug)]
 pub struct Psbt(BdkPsbt);
 
 impl Deref for Psbt {
@@ -88,7 +90,7 @@ impl From<Psbt> for BdkPsbt {
 
 /// A Transaction recipient
 #[wasm_bindgen]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Recipient {
     address: Address,
     amount: Amount,
